@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Water Park Tycoon</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #d0f2f7;
+      text-align: center;
+    }
+    h1, h2, h3 {
+      margin: 10px;
+    }
+    #home, #game {
+      padding: 20px;
+    }
+    #game { display: none; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      gap: 2px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      background: #b2ebf2;
+      border: 1px solid #0097a7;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #shop {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin: 15px auto;
+      max-width: 800px;
+    }
+    #shop button {
+      padding: 6px 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid #00796b;
+      background: white;
+      cursor: pointer;
+    }
+    #shop button.selected {
+      background: #00796b;
+      color: white;
+    }
+    #infoBox, #timer {
+      margin-top: 10px;
+      font-size: 15px;
+    }
+    #popup {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      background: white;
+      border: 2px solid #00796b;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #00796b;
+      display: none;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+<div id="home">
+  <h1>🏖️ Water Park Tycoon</h1>
+  <button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="game">
+  <h2>Money: $<span id="money">100</span> | Visitors: <span id="visitors">0</span></h2>
+  <div id="timer">Next paycheck in <span id="countdown">60</span> seconds</div>
+  <div id="shop"></div>
+  <div class="grid" id="grid"></div>
+  <div id="infoBox"></div>
+</div>
+
+<div id="popup"></div>
+
+<script>
+const buildings = [
+  { name: "🎟️ Ticket Booth", cost: 0, money: 20, visitors: 2, emoji: "🎟️", desc: "+2 visitors, $20" },
+  { name: "🚽🧻 Restrooms", cost: 100, money: 0, visitors: 2, emoji: "🚽", desc: "+2 visitors" },
+  { name: "🛝2️⃣ Kiddie Slide", cost: 100, money: 40, visitors: 0, emoji: "2️⃣", desc: "$40" },
+  { name: "🤿 Snorkel Shop", cost: 250, money: 30, visitors: 0, emoji: "🤿", desc: "$30" },
+  { name: "🛟 Life Vest", cost: 400, money: 50, visitors: 3, emoji: "🛟", desc: "$50, +3 visitors" },
+  { name: "🏄‍♂️ Surfing", cost: 1000, money: 100, visitors: 0, emoji: "🏄", desc: "$100" },
+  { name: "🔫 Water Gun Arena", cost: 1500, money: 100, visitors: 0, emoji: "🔫", desc: "$100" },
+  { name: "🛝🔟 Big Slide", cost: 2500, money: 300, visitors: 0, emoji: "🔟", desc: "$300" },
+  { name: "⛺ Campsite", cost: 5000, money: 500, visitors: 5, emoji: "⛺", desc: "$500, +5 visitors" },
+  { name: "🍕 Restaurant", cost: 12000, money: 1000, visitors: 10, emoji: "🍕", desc: "$1000, +10 visitors" },
+  { name: "🛝! Waterslide", cost: 20000, money: 2000, visitors: 0, emoji: "!", desc: "$2000" },
+  { name: "🚢 Cruise Ship", cost: 100000, money: 15000, visitors: 75, emoji: "🚢", desc: "$15,000, +75 visitors" },
+];
+
+let money = 100;
+let moneyPerMinute = 0;
+let visitorsPerMinute = 0;
+let selected = 0;
+let countdown = 60;
+
+function startGame() {
+  document.getElementById("home").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  checkOfflineEarnings();
+  setupGrid();
+  setupShop();
+  startTimers();
+}
+
+function setupGrid() {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  for (let i = 0; i < 100; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.dataset.index = i;
+    const saved = localStorage.getItem("cell" + i);
+    if (saved !== null) {
+      const b = buildings[+saved];
+      cell.textContent = b.emoji;
+      addStats(b);
+    }
+    cell.onclick = () => placeBuilding(i);
+    grid.appendChild(cell);
+  }
+}
+
+function setupShop() {
+  const shop = document.getElementById("shop");
+  shop.innerHTML = "";
+  buildings.forEach((b, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = `${b.emoji} $${b.cost}`;
+    btn.onclick = () => {
+      selected = i;
+      document.querySelectorAll("#shop button").forEach(btn => btn.classList.remove("selected"));
+      btn.classList.add("selected");
+    };
+    if (i === 0) btn.classList.add("selected");
+    shop.appendChild(btn);
+  });
+}
+
+function placeBuilding(index) {
+  const cell = document.querySelector(`[data-index="${index}"]`);
+  if (cell.textContent !== "") return;
+  const b = buildings[selected];
+  if (money < b.cost) {
+    alert("Not enough money!");
+    return;
+  }
+  money -= b.cost;
+  cell.textContent = b.emoji;
+  localStorage.setItem("cell" + index, selected);
+  addStats(b);
+  updateDisplay();
+}
+
+function addStats(b) {
+  moneyPerMinute += b.money;
+  visitorsPerMinute += b.visitors;
+}
+
+function updateDisplay() {
+  document.getElementById("money").innerText = Math.floor(money);
+  document.getElementById("visitors").innerText = visitorsPerMinute;
+}
+
+function startTimers() {
+  setInterval(() => {
+    countdown--;
+    document.getElementById("countdown").innerText = countdown;
+    if (countdown <= 0) {
+      money += moneyPerMinute;
+      countdown = 60;
+      updateDisplay();
+    }
+    localStorage.setItem("money", money);
+  }, 1000);
+}
+
+function checkOfflineEarnings() {
+  const lastTime = localStorage.getItem("lastPlayTime");
+  money = parseFloat(localStorage.getItem("money")) || 100;
+  if (lastTime) {
+    const minutes = Math.floor((Date.now() - parseInt(lastTime)) / 60000);
+    if (minutes > 0 && moneyPerMinute > 0) {
+      const earnings = Math.floor(minutes * moneyPerMinute * 0.10);
+      money += earnings;
+      showPopup(`While you were gone for ${minutes} min, you earned $${earnings}`);
+    }
+  }
+  localStorage.setItem("lastPlayTime", Date.now());
+  updateDisplay();
+}
+
+function showPopup(text) {
+  const popup = document.getElementById("popup");
+  popup.innerText = text;
+  popup.style.display = "block";
+  setTimeout(() => popup.style.display = "none", 5000);
+}
+
+window.addEventListener("beforeunload", () => {
+  localStorage.setItem("lastPlayTime", Date.now());
+  localStorage.setItem("money", money);
+});
+
+document.getElementById("grid").addEventListener("click", e => {
+  if (e.target.classList.contains("cell") && e.target.textContent !== "") {
+    const idx = e.target.dataset.index;
+    const bIndex = +localStorage.getItem("cell" + idx);
+    const b = buildings[bIndex];
+    document.getElementById("infoBox").innerText = `${b.name}: ${b.desc}`;
+  }
+});
+</script>
+
+</body>
+</html>
