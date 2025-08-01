@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Restroom Finder - Sample</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif;
+  }
+  #map { height: 90vh; width: 100%; }
+  header {
+    background: #0077cc; color: white; text-align: center;
+    padding: 12px; font-size: 1.5em;
+  }
+  #search-container {
+    padding: 10px; background: #eee; text-align: center;
+  }
+  #search {
+    width: 300px; padding: 8px; font-size: 1em;
+  }
+</style>
+</head>
+<body>
+<header>USA Restroom Finder (Sample)</header>
+<div id="search-container">
+  <input id="search" placeholder="Search city, state, or zip..." />
+</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// Approximate 1 degree lat/lng ~ 69 miles, so ~0.07 degrees ~5 miles
+
+function generateRestrooms(stateCode, stateName, towns, count) {
+  // towns: array of {name, lat, lng, zip}
+  // returns array of restrooms spaced about 5 miles apart, about 1 restroom per 3 towns or less, total count restrooms
+
+  const restrooms = [];
+  const townsCount = towns.length;
+  // We want ~1 restroom per max 3 towns
+  const maxRestrooms = Math.min(count, Math.floor(townsCount / 3));
+
+  for (let i = 0; i < maxRestrooms; i++) {
+    // pick a town every ~3 towns
+    const townIndex = Math.min(i * 3, townsCount - 1);
+    const town = towns[townIndex];
+
+    // Randomize coords +-0.02 (~1.3 miles) to spread restrooms near town center
+    const latOffset = (Math.random() - 0.5) * 0.04;
+    const lngOffset = (Math.random() - 0.5) * 0.04;
+
+    restrooms.push({
+      city: town.name,
+      state: stateName,
+      stateCode,
+      zip: town.zip,
+      coords: [town.lat + latOffset, town.lng + lngOffset],
+      name: `${town.name} Public Restroom`,
+    });
+  }
+  return restrooms;
+}
+
+// Sample towns data for 3 states (just showing 10 towns each for demo)
+// Ideally you’d use a big dataset of real towns with lat/lng/zip
+
+const nyTowns = [
+  { name: "New York", lat: 40.7128, lng: -74.0060, zip: "10001" },
+  { name: "Buffalo", lat: 42.8864, lng: -78.8784, zip: "14201" },
+  { name: "Rochester", lat: 43.1566, lng: -77.6088, zip: "14604" },
+  { name: "Yonkers", lat: 40.9312, lng: -73.8988, zip: "10701" },
+  { name: "Syracuse", lat: 43.0481, lng: -76.1474, zip: "13201" },
+  { name: "Albany", lat: 42.6526, lng: -73.7562, zip: "12201" },
+  { name: "New Rochelle", lat: 40.9115, lng: -73.7824, zip: "10801" },
+  { name: "Mount Vernon", lat: 40.9126, lng: -73.8371, zip: "10550" },
+  { name: "Schenectady", lat: 42.8142, lng: -73.9396, zip: "12305" },
+  { name: "Utica", lat: 43.1009, lng: -75.2327, zip: "13501" }
+  // Add more for a full 100+ towns
+];
+
+const njTowns = [
+  { name: "Newark", lat: 40.7357, lng: -74.1724, zip: "07101" },
+  { name: "Jersey City", lat: 40.7178, lng: -74.0431, zip: "07302" },
+  { name: "Paterson", lat: 40.9168, lng: -74.1718, zip: "07501" },
+  { name: "Elizabeth", lat: 40.6639, lng: -74.2107, zip: "07201" },
+  { name: "Edison", lat: 40.5187, lng: -74.4121, zip: "08817" },
+  { name: "Woodbridge", lat: 40.5574, lng: -74.2844, zip: "07095" },
+  { name: "Lakewood", lat: 40.0820, lng: -74.2090, zip: "08701" },
+  { name: "Toms River", lat: 39.9536, lng: -74.1887, zip: "08753" },
+  { name: "Hamilton", lat: 40.2171, lng: -74.7429, zip: "08619" },
+  { name: "Trenton", lat: 40.2171, lng: -74.7429, zip: "08608" }
+  // Add more for 100+ towns
+];
+
+const paTowns = [
+  { name: "Philadelphia", lat: 39.9526, lng: -75.1652, zip: "19102" },
+  { name: "Pittsburgh", lat: 40.4406, lng: -79.9959, zip: "15222" },
+  { name: "Allentown", lat: 40.6084, lng: -75.4902, zip: "18101" },
+  { name: "Erie", lat: 42.1292, lng: -80.0851, zip: "16501" },
+  { name: "Reading", lat: 40.3356, lng: -75.9269, zip: "19601" },
+  { name: "Scranton", lat: 41.4089, lng: -75.6624, zip: "18503" },
+  { name: "Bethlehem", lat: 40.6259, lng: -75.3705, zip: "18015" },
+  { name: "Lancaster", lat: 40.0379, lng: -76.3055, zip: "17602" },
+  { name: "Harrisburg", lat: 40.2732, lng: -76.8867, zip: "17101" },
+  { name: "York", lat: 39.9626, lng: -76.7277, zip: "17401" }
+  // Add more for 100+ towns
+];
+
+// Generate restrooms
+const restrooms = [
+  ...generateRestrooms("NY", "New York", nyTowns, 100),
+  ...generateRestrooms("NJ", "New Jersey", njTowns, 100),
+  ...generateRestrooms("PA", "Pennsylvania", paTowns, 100),
+];
+
+// Initialize map centered in Northeast USA
+const map = L.map("map").setView([41.5, -75.7], 7);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors",
+}).addTo(map);
+
+const markers = [];
+
+function showMarkers(filter = "") {
+  markers.forEach(({ marker }) => map.removeLayer(marker));
+  markers.length = 0;
+  const f = filter.toLowerCase();
+  restrooms.forEach(({ city, state, zip, coords, name }) => {
+    if (
+      !f ||
+      city.toLowerCase().includes(f) ||
+      state.toLowerCase().includes(f) ||
+      zip.includes(f)
+    ) {
+      const marker = L.marker(coords).addTo(map);
+      marker.bindPopup(`<b>${name}</b><br>${city}, ${state} ${zip}`);
+      markers.push({ marker });
+    }
+  });
+}
+
+// Initial show all
+showMarkers();
+
+document.getElementById("search").addEventListener("input", (e) => {
+  showMarkers(e.target.value);
+});
+</script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</body>
+</html>
